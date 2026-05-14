@@ -1,9 +1,35 @@
 const fetch = require('node-fetch');
 require('dotenv').config({ path: '../.env' });
 
+// 3-strategy JSON parser for AI responses
+function parseAIJson(text) {
+  // Strategy 1: direct parse
+  try {
+    return JSON.parse(text);
+  } catch {}
+
+  // Strategy 2: extract JSON from markdown code block
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    try {
+      return JSON.parse(codeBlockMatch[1].trim());
+    } catch {}
+  }
+
+  // Strategy 3: find first { ... } block
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch {}
+  }
+
+  return null;
+}
+
 async function callOpenRouter(systemPrompt, userMessage) {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  const model = process.env.OPENROUTER_MODEL || 'anthropic/claude-haiku-4.5';
+  const model = process.env.OPENROUTER_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
 
   if (!apiKey || apiKey === 'your_openrouter_api_key_here') {
     return {
@@ -45,9 +71,13 @@ async function callOpenRouter(systemPrompt, userMessage) {
       };
     }
 
+    const rawResult = data.choices[0].message.content;
+    const parsedJson = parseAIJson(rawResult);
+
     return {
       success: true,
-      result: data.choices[0].message.content,
+      result: rawResult,
+      result_json: parsedJson,
       model: data.model || model,
       usage: data.usage || null,
       id: data.id
@@ -62,4 +92,4 @@ async function callOpenRouter(systemPrompt, userMessage) {
   }
 }
 
-module.exports = { callOpenRouter };
+module.exports = { callOpenRouter, parseAIJson };

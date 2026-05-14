@@ -19,12 +19,33 @@ function FeaturePage({ user, onLogout }) {
   const [showDelete, setShowDelete] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState('');
+  const [aiReviewResult, setAiReviewResult] = useState(null);
+  const [aiReviewLoading, setAiReviewLoading] = useState(false);
+  const [appealResult, setAppealResult] = useState(null);
+  const [appealLoading, setAppealLoading] = useState(false);
+  const [appealContext, setAppealContext] = useState('');
+  const LIMIT = 20;
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (p = 1) => {
     try {
       setLoading(true);
-      const res = await API.get(config.endpoint);
-      setData(res.data);
+      const res = await API.get(`${config.endpoint}?page=${p}&limit=${LIMIT}`);
+      // Handle both old array response and new paginated response
+      if (Array.isArray(res.data)) {
+        setData(res.data);
+        setTotalPages(1);
+        setTotal(res.data.length);
+      } else {
+        setData(res.data.data || []);
+        setTotalPages(res.data.pagination?.totalPages || 1);
+        setTotal(res.data.pagination?.total || 0);
+      }
     } catch (err) {
       console.error('Fetch error:', err);
     }
@@ -32,8 +53,8 @@ function FeaturePage({ user, onLogout }) {
   }, [config.endpoint]);
 
   useEffect(() => {
-    if (config) fetchData();
-  }, [config, fetchData]);
+    if (config) fetchData(page);
+  }, [config, fetchData, page]);
 
   if (!config) {
     return <div className="loading-screen">Feature not found</div>;
@@ -64,6 +85,7 @@ function FeaturePage({ user, onLogout }) {
       setSelectedItem(res.data);
       setShowDetail(true);
       setAiResult(null);
+      setUploadMsg('');
     } catch (err) {
       console.error('Detail fetch error:', err);
     }
@@ -98,7 +120,7 @@ function FeaturePage({ user, onLogout }) {
         await API.post(config.endpoint, formData);
       }
       setShowForm(false);
-      fetchData();
+      fetchData(page);
     } catch (err) {
       console.error('Save error:', err);
     }
@@ -109,7 +131,7 @@ function FeaturePage({ user, onLogout }) {
       await API.delete(`${config.endpoint}/${selectedItem.id}`);
       setShowDelete(false);
       setShowDetail(false);
-      fetchData();
+      fetchData(page);
     } catch (err) {
       console.error('Delete error:', err);
     }
@@ -121,10 +143,83 @@ function FeaturePage({ user, onLogout }) {
     try {
       const res = await API.post(`${config.endpoint}/${selectedItem.id}/analyze`);
       setAiResult(res.data);
+      // Refresh to show saved ai_analysis
+      const refreshed = await API.get(`${config.endpoint}/${selectedItem.id}`);
+      setSelectedItem(refreshed.data);
     } catch (err) {
       setAiResult({ success: false, result: 'AI analysis failed: ' + (err.response?.data?.error || err.message) });
     }
     setAiLoading(false);
+  };
+
+  // Permit state machine actions
+  const handlePermitAction = async (action) => {
+    try {
+      await API.post(`${config.endpoint}/${selectedItem.id}/${action}`);
+      const refreshed = await API.get(`${config.endpoint}/${selectedItem.id}`);
+      setSelectedItem(refreshed.data);
+      fetchData(page);
+    } catch (err) {
+      alert('Action failed: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  // Document upload
+  const handleUpload = async () => {
+    if (!uploadFile) return;
+    setUploadLoading(true);
+    setUploadMsg('');
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', uploadFile);
+      formDataUpload.append('entity_type', featureKey);
+      if (selectedItem) formDataUpload.append('entity_id', selectedItem.id);
+
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:4000/api/documents/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formDataUpload,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUploadMsg(`File uploaded: ${data.original_filename}`);
+        setUploadFile(null);
+      } else {
+        setUploadMsg('Upload failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      setUploadMsg('Upload error: ' + err.message);
+    }
+    setUploadLoading(false);
+  };
+
+  const isPermitsPage = featureKey === 'permits';
+
+  const handleAiReview = async () => {
+    if (!selectedItem) return;
+    setAiReviewLoading(true);
+    setAiReviewResult(null);
+    try {
+      const res = await API.post(`/ai/permits/${selectedItem.id}/ai-review`);
+      setAiReviewResult(res.data);
+    } catch (err) {
+      setAiReviewResult({ success: false, result: 'AI review failed: ' + (err.response?.data?.error || err.message) });
+    }
+    setAiReviewLoading(false);
+  };
+
+  const handleAppeal = async () => {
+    if (!selectedItem) return;
+    setAppealLoading(true);
+    setAppealResult(null);
+    try {
+      const res = await API.post(`/ai/permits/${selectedItem.id}/ai-appeal`, { additional_context: appealContext });
+      setAppealResult(res.data);
+    } catch (err) {
+      setAppealResult({ success: false, result: 'Appeal generation failed: ' + (err.response?.data?.error || err.message) });
+    }
+    setAppealLoading(false);
   };
 
   return (
@@ -135,6 +230,19 @@ function FeaturePage({ user, onLogout }) {
           <h2>PermitZone AI</h2>
         </div>
         <div className="navbar-right">
+          {featureKey === 'permits' && (
+            <>
+              <button className="btn-logout" style={{marginRight:8}} onClick={() => navigate('/kanban')}>
+                <i className="fas fa-columns"></i> Kanban
+              </button>
+              <button className="btn-logout" style={{marginRight:8}} onClick={() => navigate('/fee-calculator')}>
+                <i className="fas fa-calculator"></i> Fee Calc
+              </button>
+            </>
+          )}
+          <button className="btn-logout" style={{marginRight:8}} onClick={() => navigate('/ai-history')}>
+            <i className="fas fa-history"></i> AI History
+          </button>
           <span className="navbar-user">Welcome, <strong>{user.name}</strong></span>
           <button className="btn-logout" onClick={onLogout}>
             <i className="fas fa-sign-out-alt"></i> Logout
@@ -150,6 +258,7 @@ function FeaturePage({ user, onLogout }) {
             </button>
             <div>
               <h1><i className={`fas ${config.icon}`} style={{ color: config.color, marginRight: 12 }}></i>{config.title}</h1>
+              <small style={{color:'#666'}}>{total} total records</small>
             </div>
           </div>
           <button className="btn-new" onClick={handleNew}>
@@ -173,23 +282,56 @@ function FeaturePage({ user, onLogout }) {
                   {config.columns.map(col => (
                     <th key={col.key}>{col.label}</th>
                   ))}
+                  <th>AI Analysis</th>
                 </tr>
               </thead>
               <tbody>
                 {data.map((item, idx) => (
                   <tr key={item.id} onClick={() => handleRowClick(item)}>
-                    <td>{idx + 1}</td>
+                    <td>{(page - 1) * LIMIT + idx + 1}</td>
                     {config.columns.map(col => (
                       <td key={col.key}>
                         {col.format ? formatValue(item[col.key], col.format) : (item[col.key] || '-')}
                       </td>
                     ))}
+                    <td>
+                      {item.ai_analysis ? (
+                        <span className="status-badge compliant" title="AI analysis available">
+                          <i className="fas fa-robot"></i> Done
+                        </span>
+                      ) : (
+                        <span style={{color:'#999',fontSize:'0.8rem'}}>Pending</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="pagination" style={{display:'flex',gap:8,justifyContent:'center',padding:'16px 0',alignItems:'center'}}>
+            <button
+              className="btn-action"
+              onClick={() => { setPage(p => Math.max(1, p - 1)); fetchData(page - 1); }}
+              disabled={page <= 1}
+              style={{padding:'6px 14px'}}
+            >
+              <i className="fas fa-chevron-left"></i> Prev
+            </button>
+            <span style={{fontSize:'0.9rem',color:'#666'}}>Page {page} of {totalPages}</span>
+            <button
+              className="btn-action"
+              onClick={() => { setPage(p => Math.min(totalPages, p + 1)); fetchData(page + 1); }}
+              disabled={page >= totalPages}
+              style={{padding:'6px 14px'}}
+            >
+              Next <i className="fas fa-chevron-right"></i>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Detail Modal */}
@@ -214,7 +356,115 @@ function FeaturePage({ user, onLogout }) {
                 ))}
               </div>
 
-              {/* AI Analysis Section */}
+              {/* Permit State Machine Buttons */}
+              {isPermitsPage && (
+                <div style={{margin:'16px 0', padding:'12px', background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0'}}>
+                  <strong style={{display:'block',marginBottom:8,color:'#374151'}}>Permit Workflow</strong>
+                  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                    <span style={{fontSize:'0.85rem',color:'#6b7280'}}>Current: <strong>{selectedItem.status}</strong></span>
+                    {selectedItem.status !== 'submitted' && selectedItem.status !== 'approved' && selectedItem.status !== 'rejected' && (
+                      <button className="btn-action" style={{background:'#3b82f6',color:'white',padding:'4px 12px',fontSize:'0.85rem'}}
+                        onClick={() => handlePermitAction('submit')}>
+                        <i className="fas fa-paper-plane"></i> Submit
+                      </button>
+                    )}
+                    {user.role === 'admin' && selectedItem.status === 'submitted' && (
+                      <>
+                        <button className="btn-action" style={{background:'#22c55e',color:'white',padding:'4px 12px',fontSize:'0.85rem'}}
+                          onClick={() => handlePermitAction('approve')}>
+                          <i className="fas fa-check"></i> Approve
+                        </button>
+                        <button className="btn-action" style={{background:'#ef4444',color:'white',padding:'4px 12px',fontSize:'0.85rem'}}
+                          onClick={() => handlePermitAction('reject')}>
+                          <i className="fas fa-times"></i> Reject
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Saved AI Analysis */}
+              {selectedItem.ai_analysis && !aiResult && (
+                <div className="ai-result" style={{marginTop:16}}>
+                  <div className="ai-result-header">
+                    <i className="fas fa-robot"></i>
+                    <h3>Saved AI Analysis</h3>
+                  </div>
+                  <div className="ai-result-body">
+                    <ReactMarkdown>{selectedItem.ai_analysis}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
+              {/* Document Upload */}
+              <div style={{margin:'16px 0', padding:'12px', background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0'}}>
+                <strong style={{display:'block',marginBottom:8,color:'#374151'}}>Upload Document</strong>
+                <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.gif,.tiff,.bmp"
+                    onChange={e => setUploadFile(e.target.files[0])}
+                    style={{fontSize:'0.85rem'}} />
+                  <button className="btn-action" style={{background:'#8b5cf6',color:'white',padding:'4px 12px',fontSize:'0.85rem'}}
+                    onClick={handleUpload} disabled={!uploadFile || uploadLoading}>
+                    {uploadLoading ? 'Uploading...' : <><i className="fas fa-upload"></i> Upload</>}
+                  </button>
+                </div>
+                {uploadMsg && <p style={{marginTop:6,fontSize:'0.85rem',color: uploadMsg.includes('failed') || uploadMsg.includes('error') ? '#ef4444' : '#22c55e'}}>{uploadMsg}</p>}
+              </div>
+
+              {/* AI Review Panel (permits only) */}
+              {isPermitsPage && (
+                <div style={{margin:'16px 0', padding:'12px', background:'#f0f4ff', borderRadius:8, border:'1px solid #a5b4fc'}}>
+                  <strong style={{display:'block',marginBottom:8,color:'#3730a3'}}>
+                    <i className="fas fa-magnifying-glass" style={{marginRight:6}}></i>AI Detailed Review
+                  </strong>
+                  <p style={{fontSize:'0.82rem',color:'#4338ca',marginBottom:8}}>
+                    Generates a comprehensive review with specific IBC/IRC code citations and all uploaded documents.
+                  </p>
+                  <button className="btn-action" style={{background:'#6366f1',color:'white',padding:'5px 14px',fontSize:'0.85rem'}}
+                    onClick={handleAiReview} disabled={aiReviewLoading}>
+                    {aiReviewLoading ? <><i className="fas fa-spinner fa-spin" style={{marginRight:6}}></i>Reviewing...</> : <><i className="fas fa-robot" style={{marginRight:6}}></i>Run AI Review</>}
+                  </button>
+                  {aiReviewResult && (
+                    <div className="ai-result" style={{marginTop:10}}>
+                      <div className="ai-result-header"><i className="fas fa-robot"></i><h3>AI Review Findings</h3>
+                        {aiReviewResult.documents_reviewed !== undefined && <span style={{fontSize:'0.8rem',color:'#6b7280'}}>{aiReviewResult.documents_reviewed} docs reviewed</span>}
+                      </div>
+                      <div className="ai-result-body"><ReactMarkdown>{aiReviewResult.result || 'No result'}</ReactMarkdown></div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Appeal Assistant (permits only, for rejected/denied) */}
+              {isPermitsPage && (selectedItem?.status === 'rejected' || selectedItem?.status === 'Denied' || selectedItem?.status === 'Revisions Required') && (
+                <div style={{margin:'16px 0', padding:'12px', background:'#fff7ed', borderRadius:8, border:'1px solid #fdba74'}}>
+                  <strong style={{display:'block',marginBottom:8,color:'#9a3412'}}>
+                    <i className="fas fa-gavel" style={{marginRight:6}}></i>Appeal Assistant
+                  </strong>
+                  <p style={{fontSize:'0.82rem',color:'#c2410c',marginBottom:8}}>
+                    AI drafts appeal arguments with code references for this {selectedItem.status.toLowerCase()} permit.
+                  </p>
+                  <div style={{marginBottom:8}}>
+                    <label style={{fontSize:'0.82rem',color:'#374151',display:'block',marginBottom:4}}>Additional context (optional)</label>
+                    <textarea value={appealContext} onChange={e => setAppealContext(e.target.value)}
+                      placeholder="Any additional facts that support the appeal..."
+                      rows={2} style={{width:'100%',padding:'6px 8px',borderRadius:6,border:'1px solid #e2e8f0',fontSize:'0.85rem'}} />
+                  </div>
+                  <button className="btn-action" style={{background:'#ea580c',color:'white',padding:'5px 14px',fontSize:'0.85rem'}}
+                    onClick={handleAppeal} disabled={appealLoading}>
+                    {appealLoading ? <><i className="fas fa-spinner fa-spin" style={{marginRight:6}}></i>Generating...</> : <><i className="fas fa-file-contract" style={{marginRight:6}}></i>Generate Appeal</>}
+                  </button>
+                  {appealResult && (
+                    <div className="ai-result" style={{marginTop:10}}>
+                      <div className="ai-result-header"><i className="fas fa-gavel"></i><h3>Appeal Arguments</h3></div>
+                      <div className="ai-result-body"><ReactMarkdown>{appealResult.result || 'No result'}</ReactMarkdown></div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Fresh AI Analysis Section */}
               {aiLoading && (
                 <div className="ai-result">
                   <div className="ai-result-header">

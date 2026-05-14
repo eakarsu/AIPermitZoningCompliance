@@ -12,8 +12,12 @@ function Dashboard({ user, onLogout }) {
       const results = {};
       for (const [key, config] of Object.entries(featureConfig)) {
         try {
-          const res = await API.get(config.endpoint);
-          results[key] = res.data.length;
+          const res = await API.get(config.endpoint + '?limit=1');
+          if (Array.isArray(res.data)) {
+            results[key] = res.data.length;
+          } else {
+            results[key] = res.data.pagination?.total || 0;
+          }
         } catch {
           results[key] = 0;
         }
@@ -35,6 +39,21 @@ function Dashboard({ user, onLogout }) {
         </div>
         <div className="navbar-right">
           <span className="navbar-user">Welcome, <strong>{user.name}</strong></span>
+          <button className="btn-logout" style={{marginRight:8}} onClick={() => navigate('/kanban')}>
+            <i className="fas fa-columns"></i> Kanban
+          </button>
+          <button className="btn-logout" style={{marginRight:8}} onClick={() => navigate('/jurisdiction-rules')}>
+            <i className="fas fa-scale-balanced"></i> Rules
+          </button>
+          <button className="btn-logout" style={{marginRight:8}} onClick={() => navigate('/fee-calculator')}>
+            <i className="fas fa-calculator"></i> Fee Calc
+          </button>
+          <button className="btn-logout" style={{marginRight:8}} onClick={() => navigate('/ai-history')}>
+            <i className="fas fa-history"></i> AI History
+          </button>
+          <button className="btn-logout" style={{marginRight:8}} onClick={() => navigate('/ai-predictive')}>
+            <i className="fas fa-brain"></i> AI Predictive
+          </button>
           <button className="btn-logout" onClick={onLogout}>
             <i className="fas fa-sign-out-alt"></i> Logout
           </button>
@@ -102,6 +121,49 @@ function Dashboard({ user, onLogout }) {
               </div>
             );
           })}
+
+          {/* Special tool cards */}
+          <div className="feature-card" style={{'--card-color':'#6366f1'}} onClick={() => navigate('/kanban')}>
+            <div className="feature-card-header">
+              <div className="feature-icon" style={{background:'#6366f120',color:'#6366f1'}}>
+                <i className="fas fa-columns"></i>
+              </div>
+              <h3>Permit Kanban Board</h3>
+            </div>
+            <p>Visual workflow board showing all permits by status with drag-to-transition</p>
+            <div className="feature-card-footer">
+              <span className="feature-count">Workflow view</span>
+              <span className="feature-arrow"><i className="fas fa-arrow-right"></i></span>
+            </div>
+          </div>
+
+          <div className="feature-card" style={{'--card-color':'#10b981'}} onClick={() => navigate('/fee-calculator')}>
+            <div className="feature-card-header">
+              <div className="feature-icon" style={{background:'#10b98120',color:'#10b981'}}>
+                <i className="fas fa-calculator"></i>
+              </div>
+              <h3>AI Fee Calculator</h3>
+            </div>
+            <p>AI-powered permit fee estimation with detailed breakdown by permit type and jurisdiction</p>
+            <div className="feature-card-footer">
+              <span className="feature-count">AI Tool</span>
+              <span className="feature-arrow"><i className="fas fa-arrow-right"></i></span>
+            </div>
+          </div>
+
+          <div className="feature-card" style={{'--card-color':'#a78bfa'}} onClick={() => navigate('/jurisdiction-rules')}>
+            <div className="feature-card-header">
+              <div className="feature-icon" style={{background:'#a78bfa20',color:'#a78bfa'}}>
+                <i className="fas fa-scale-balanced"></i>
+              </div>
+              <h3>Jurisdiction Rules</h3>
+            </div>
+            <p>Manage local jurisdiction rules and run AI compliance checks against property addresses</p>
+            <div className="feature-card-footer">
+              <span className="feature-count">Rules Engine</span>
+              <span className="feature-arrow"><i className="fas fa-arrow-right"></i></span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
