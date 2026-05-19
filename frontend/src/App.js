@@ -31,6 +31,7 @@ import GapLimitedFrontendOnly7PagesFor19Page from './pages/GapLimitedFrontendOnl
 import GapNoNotificationsLayerGrepShowsOnly1MentionPage from './pages/GapNoNotificationsLayerGrepShowsOnly1MentionPage';
 import GapNoWebhooksForInspectionSchedulingTriggersPage from './pages/GapNoWebhooksForInspectionSchedulingTriggersPage';
 import GapNoAuditLogOnly1AuditReferencePage from './pages/GapNoAuditLogOnly1AuditReferencePage';
+import CustomViewsPage from './pages/CustomViewsPage';
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -109,6 +110,9 @@ function App() {
           <Route path="/gap-no-notifications-layer-grep-shows-only-1-mention" element={<GapNoNotificationsLayerGrepShowsOnly1MentionPage />} />
           <Route path="/gap-no-webhooks-for-inspection-scheduling-triggers" element={<GapNoWebhooksForInspectionSchedulingTriggersPage />} />
           <Route path="/gap-no-audit-log-only-1-audit-reference" element={<GapNoAuditLogOnly1AuditReferencePage />} />
+          <Route path="/custom-views" element={
+            user ? <CustomViewsPage user={user} onLogout={handleLogout} /> : <Navigate to="/login" />
+          } />
         </Routes>
     </Router>
   );

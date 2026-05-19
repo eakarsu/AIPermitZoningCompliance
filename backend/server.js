@@ -81,6 +81,9 @@ app.use('/api/gap-no-notifications-layer-grep-shows-only-1-mention', require('./
 app.use('/api/gap-no-webhooks-for-inspection-scheduling-triggers', require('./routes/gapFeat_no_webhooks_for_inspection_scheduling_triggers'));
 app.use('/api/gap-no-audit-log-only-1-audit-reference', require('./routes/gapFeat_no_audit_log_only_1_audit_reference'));
 
+// === Custom Views (mounted before any 404 handler) ===
+app.use('/api/custom-views', require('./routes/customViews'));
+
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
 });
