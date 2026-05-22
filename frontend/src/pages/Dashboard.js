@@ -54,6 +54,9 @@ function Dashboard({ user, onLogout }) {
           <button className="btn-logout" style={{marginRight:8}} onClick={() => navigate('/ai-predictive')}>
             <i className="fas fa-brain"></i> AI Predictive
           </button>
+          <button className="btn-logout" style={{marginRight:8}} onClick={() => navigate('/custom-views')}>
+            <i className="fas fa-th-large"></i> Zoning Views
+          </button>
           <button className="btn-logout" onClick={onLogout}>
             <i className="fas fa-sign-out-alt"></i> Logout
           </button>

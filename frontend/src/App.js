@@ -32,6 +32,11 @@ import GapNoNotificationsLayerGrepShowsOnly1MentionPage from './pages/GapNoNotif
 import GapNoWebhooksForInspectionSchedulingTriggersPage from './pages/GapNoWebhooksForInspectionSchedulingTriggersPage';
 import GapNoAuditLogOnly1AuditReferencePage from './pages/GapNoAuditLogOnly1AuditReferencePage';
 import CustomViewsPage from './pages/CustomViewsPage';
+import CodexCustomVizFeature from './pages/CodexCustomVizFeature';
+import CodexOperationsFeature from './pages/CodexOperationsFeature';
+
+import TimelineView from './pages/TimelineView';
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -62,6 +67,10 @@ function App() {
   return (
     <Router>
       <Routes>
+        <Route path="/insights/timeline" element={<TimelineView />} />
+        <Route path="/codex/custom-viz" element={<CodexCustomVizFeature />} />
+        <Route path="/codex/operations" element={<CodexOperationsFeature />} />
+
         <Route path="/login" element={
           user ? <Navigate to="/" /> : <Login onLogin={handleLogin} />
         } />

@@ -263,13 +263,3 @@ router.put('/:id/status', async (req, res) => {
 });
 
 module.exports = router;
- 'Under Review', 'revision_needed', 'Revisions Required', 'approved', 'Approved', 'rejected', 'Denied'];
-    COLUMNS.forEach(col => { board[col] = []; });
-    result.rows.forEach(row => { board[row.status] = row.permits || []; });
-    res.json(board);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-module.exports = router;
