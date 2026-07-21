@@ -9,6 +9,9 @@ const { authenticateToken } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.BACKEND_PORT || 4000;
+if ((process.env.JWT_SECRET || '').length < 32 || !process.env.GOVERNANCE_TENANT_ID) {
+  throw new Error('JWT_SECRET (32+ characters) and GOVERNANCE_TENANT_ID are required');
+}
 
 // Security middleware
 app.use(helmet());
@@ -49,37 +52,23 @@ app.use('/api/parking', authenticateToken, require('./routes/parking'));
 app.use('/api/ai', authenticateToken, require('./routes/aiHistory'));
 app.use('/api/ai', authenticateToken, require('./routes/aiPermit'));
 app.use('/api/jurisdiction-rules', authenticateToken, require('./routes/jurisdictionRules'));
-app.use('/api/integrations', authenticateToken, require('./routes/integrations'));
+if (process.env.ENABLE_GENERATED_ROUTES === 'true' && process.env.NODE_ENV !== 'production') {
+  app.use('/api/integrations', authenticateToken, require('./routes/integrations'));
+}
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-
-// === Custom Feature Mounts (batch_06) ===
-app.use('/api/cf-ai-plan-pre-screening', require('./routes/customFeat01_AiPlanPreScreening'));
-app.use('/api/cf-zoning-assistant-chatbot', require('./routes/customFeat02_ZoningAssistantChatbot'));
-app.use('/api/cf-inspection-routing-optimization', require('./routes/customFeat03_InspectionRoutingOptimization'));
-app.use('/api/cf-violation-escalation-scoring', require('./routes/customFeat04_ViolationEscalationScoring'));
-app.use('/api/cf-neighborhood-impact-analysis', require('./routes/customFeat05_NeighborhoodImpactAnalysis'));
-
-
-// === Batch 06 Gaps & Frontend Mounts ===
-app.use('/api/gap-existing-aihistory-js-and-aipermit-js-stubs-need-r', require('./routes/gapFeat_existing_aihistory_js_and_aipermit_js_stubs_need_r'));
-app.use('/api/gap-plans-without-plan', require('./routes/gapFeat_plans_without_plan'));
-app.use('/api/gap-inspections-without-inspection', require('./routes/gapFeat_inspections_without_inspection'));
-app.use('/api/gap-violations-without-violation', require('./routes/gapFeat_violations_without_violation'));
-app.use('/api/gap-code-without-code', require('./routes/gapFeat_code_without_code'));
-app.use('/api/gap-no-cad-gis-integration-plan-viewer-parcel-maps', require('./routes/gapFeat_no_cad_gis_integration_plan_viewer_parcel_maps'));
-app.use('/api/gap-no-public-portal-online-permit-tracking-doc-submis', require('./routes/gapFeat_no_public_portal_online_permit_tracking_doc_submis'));
-app.use('/api/gap-no-fee-calculation-engine', require('./routes/gapFeat_no_fee_calculation_engine'));
-app.use('/api/gap-limited-integration-with-title-deed-records-integr', require('./routes/gapFeat_limited_integration_with_title_deed_records_integr'));
-app.use('/api/gap-no-document-versioning-for-plans', require('./routes/gapFeat_no_document_versioning_for_plans'));
-app.use('/api/gap-limited-frontend-only-7-pages-for-19', require('./routes/gapFeat_limited_frontend_only_7_pages_for_19'));
-app.use('/api/gap-no-notifications-layer-grep-shows-only-1-mention', require('./routes/gapFeat_no_notifications_layer_grep_shows_only_1_mention'));
-app.use('/api/gap-no-webhooks-for-inspection-scheduling-triggers', require('./routes/gapFeat_no_webhooks_for_inspection_scheduling_triggers'));
-app.use('/api/gap-no-audit-log-only-1-audit-reference', require('./routes/gapFeat_no_audit_log_only_1_audit_reference'));
+app.use('/api/governed-permit-matters', require('./governance'));
+if (process.env.ENABLE_GENERATED_ROUTES === 'true' && process.env.NODE_ENV !== 'production') {
+  app.use('/api/cf-ai-plan-pre-screening', require('./routes/customFeat01_AiPlanPreScreening'));
+  app.use('/api/cf-zoning-assistant-chatbot', require('./routes/customFeat02_ZoningAssistantChatbot'));
+  app.use('/api/cf-inspection-routing-optimization', require('./routes/customFeat03_InspectionRoutingOptimization'));
+  app.use('/api/cf-violation-escalation-scoring', require('./routes/customFeat04_ViolationEscalationScoring'));
+  app.use('/api/cf-neighborhood-impact-analysis', require('./routes/customFeat05_NeighborhoodImpactAnalysis'));
+}
 
 // === Custom Views (mounted before any 404 handler) ===
 app.use('/api/custom-views', require('./routes/customViews'));

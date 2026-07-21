@@ -22,9 +22,9 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'secret',
-      { expiresIn: '24h' }
+      { id: user.id, email: user.email, role: user.role, tenantId: process.env.GOVERNANCE_TENANT_ID },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h', algorithm: 'HS256' }
     );
 
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
@@ -39,7 +39,7 @@ router.get('/me', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'No token' });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const result = await pool.query('SELECT id, email, name, role FROM users WHERE id = $1', [decoded.id]);
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });

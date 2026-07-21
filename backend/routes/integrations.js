@@ -7,15 +7,7 @@
 // keyed by document_id with monotonic version_number.
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'permit_zoning_db',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || '',
-});
+const pool = require('../db');
 
 function gate(envVar) {
   return (req, res, next) => {
@@ -27,36 +19,18 @@ function gate(envVar) {
   };
 }
 
-async function ensureTables() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS document_versions (
-      id SERIAL PRIMARY KEY,
-      document_id INTEGER NOT NULL,
-      version_number INTEGER NOT NULL,
-      file_path TEXT,
-      uploaded_by INTEGER,
-      notes TEXT,
-      created_at TIMESTAMP DEFAULT NOW()
-    )
-  `).catch(() => {});
-  await pool.query(
-    `CREATE INDEX IF NOT EXISTS idx_doc_versions ON document_versions(document_id, version_number)`
-  ).catch(() => {});
-}
-ensureTables();
-
 // ---- 1. Title/deed lookup (NEEDS-CREDS) ----
 router.post('/title-deed/lookup', gate('TITLE_DEED_API_KEY'), async (req, res) => {
   const { property_address } = req.body || {};
   if (!property_address) return res.status(400).json({ error: 'property_address required' });
-  res.json({ ok: true, provider: 'title-deed', property_address, message: 'Live county feed would be queried here' });
+  res.status(501).json({ error: 'Title/deed adapter is not implemented; submit an approved governed integration request' });
 });
 
 // ---- 2. Neighborhood impact GIS analysis (NEEDS-CREDS) ----
 router.post('/gis/neighborhood-impact', gate('GIS_API_KEY'), async (req, res) => {
   const { lat, lon, radius_m } = req.body || {};
   if (lat == null || lon == null) return res.status(400).json({ error: 'lat and lon required' });
-  res.json({ ok: true, provider: 'gis', lat, lon, radius_m: radius_m || 500, layers: [] });
+  res.status(501).json({ error: 'GIS adapter is not implemented; submit an approved governed integration request' });
 });
 
 // ---- 3. Document version add ----
@@ -108,9 +82,7 @@ router.get('/public-portal/permits', async (req, res) => {
          LIMIT 200`
       );
       rows = r.rows;
-    } catch (err) {
-      rows = [];
-    }
+    } catch (err) { return res.status(503).json({ error: 'Permit registry unavailable' }); }
     res.json({ permits: rows, note: 'PRODUCT-DECISION: public read-only summary — PII fields excluded' });
   } catch (e) {
     res.status(500).json({ error: e.message });
