@@ -64,8 +64,8 @@ function Login({ onLogin }) {
           </button>
         </form>
 
-        <button onClick={fillCredentials} className="btn-fill">
-          <i className="fas fa-magic"></i> Auto-Fill Demo Credentials
+        <button type="button" onClick={fillCredentials} className="btn-fill" aria-label="Auto Fill Demo Credentials">
+          <i className="fas fa-magic"></i> Auto Fill Demo Credentials
         </button>
       </div>
     </div>
